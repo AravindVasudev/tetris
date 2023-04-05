@@ -31,10 +31,14 @@ const BOARD_HEIGHT: usize = 20;
 // The default board size is 20x10. x requires 5 bits & y requires 4 bits.
 // So u8 is not an option. Given rust is efficient with structs, packing this
 // into u16 would be a overkill.
+// Edit: On retrospect, this needs signed ints. Translation could yield -ve num.
+// Maybe given we only translate one position at a time, an optimization would
+// be to check if offset < 0 and (x or y) == 0 for invalid offset. That way, I
+// can still use u8.
 // TODO: Maybe a different way to pack into u8?
 struct Point {
-    x: u8,
-    y: u8,
+    x: i16,
+    y: i16,
 }
 
 impl ops::AddAssign<&Point> for Point {
@@ -265,10 +269,38 @@ impl Game {
         }
     }
 
-    fn translate(&self, t: &mut Tetromino, offset: Point) {
+    // Translate tetromino.
+    fn translate(&mut self, t: &mut Tetromino, offset: Point) {
+        // Don't translate if any block fails bound check.
+        // TODO: extract validation into a fn.
+        for block in t.blocks.iter() {
+            let new_x = block.x + offset.x;
+            let new_y = block.y + offset.y;
+
+            if new_x < 0 || new_x >= (self.height as i16) || new_y < 0 || new_y >= (self.width as i16) {
+                return;
+            }
+        }
+
+        // Translate
         for i in 0..t.blocks.len() {
             t.blocks[i] += &offset;
         }
+    }
+
+    // Translate tetromino left.
+    fn left(&mut self, t: &mut Tetromino) {
+        self.translate(t, Point { x: 0, y: -1 });
+    }
+
+    // Translate tetromino right.
+    fn right(&mut self, t: &mut Tetromino) {
+        self.translate(t, Point { x: 0, y: 1 });
+    }
+
+    // Translate tetromino down.
+    fn down(&mut self, t: &mut Tetromino) {
+        self.translate(t, Point { x: 1, y: 0 });
     }
 
     fn draw(&mut self) {
@@ -289,7 +321,10 @@ impl Game {
         self.init_screen();
 
         let mut t = Tetromino::random();
-        self.translate(&mut t, Point { x: 1, y: 1 });
+        self.left(&mut t);
+        self.right(&mut t);
+        self.right(&mut t);
+        self.down(&mut t);
         self.insert(t);
 
         self.draw();
