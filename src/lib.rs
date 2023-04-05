@@ -1,4 +1,3 @@
-use std::fmt::format;
 use std::io::{self, StdinLock, Stdout, Write};
 
 use rand::prelude::*;
@@ -27,11 +26,12 @@ const EMPTY_CELL: &'static str = "· ";
 const BOARD_WIDTH: usize = 10;
 const BOARD_HEIGHT: usize = 20;
 
-// TODO: Simply
-struct Point {
-    x: usize,
-    y: usize,
-}
+// Point struct
+// The default board size is 20x10. x requires 5 bits & y requires 4 bits.
+// So u8 is not an option. Given rust is efficient with structs, packing this
+// into u16 would be a overkill.
+// TODO: Maybe a different way to pack into u8?
+struct Point {x: u8, y: u8}
 
 // Tetromino blocks
 // Positioning:
@@ -42,15 +42,19 @@ struct Point {
 // Each tetromino occupies 4 positions in the above sparse array.
 // The struct stores xy for each block in the tetromino.
 // Ref: https://en.wikipedia.org/wiki/Tetromino#One-sided_tetrominoes
-// TODO: Maybe optimize to store as single int?
 struct Tetromino {
     b1: Point,
     b2: Point,
     b3: Point,
     b4: Point,
+    // Color is a trait. I got no idea what that is and instead of putting the
+    // project on hold till I finish the book or keep going into my google
+    // search hole, I'm hacking this to store the string.
+    color: String,
 }
 
 impl Tetromino {
+  // Get a random tetromino.
     pub fn random() -> Self {
         let mut rng = rand::thread_rng();
         match rng.gen_range(0..7) {
@@ -64,66 +68,80 @@ impl Tetromino {
         }
     }
 
+    // I tetromino.
     fn i() -> Self {
         Tetromino {
             b1: Point { x: 0, y: 0 },
             b2: Point { x: 0, y: 1 },
             b3: Point { x: 0, y: 2 },
             b4: Point { x: 0, y: 3 },
+            color: format!("{}", color::Fg(color::Cyan)),
         }
     }
 
+    // O tetromino.
     fn o() -> Self {
         Tetromino {
             b1: Point { x: 0, y: 0 },
             b2: Point { x: 0, y: 1 },
             b3: Point { x: 1, y: 0 },
             b4: Point { x: 1, y: 1 },
+            color: format!("{}", color::Fg(color::Yellow)),
         }
     }
 
+    // T tetromino.
     fn t() -> Self {
         Tetromino {
             b1: Point { x: 0, y: 0 },
             b2: Point { x: 0, y: 1 },
             b3: Point { x: 0, y: 2 },
             b4: Point { x: 1, y: 1 },
+            color: format!("{}", color::Fg(color::Magenta)),
         }
     }
 
+    // J tetromino.
     fn j() -> Self {
         Tetromino {
             b1: Point { x: 0, y: 1 },
             b2: Point { x: 1, y: 1 },
             b3: Point { x: 2, y: 0 },
             b4: Point { x: 2, y: 1 },
+            color: format!("{}", color::Fg(color::Blue)),
         }
     }
 
+    // L tetromino.
     fn l() -> Self {
         Tetromino {
             b1: Point { x: 0, y: 0 },
             b2: Point { x: 1, y: 0 },
             b3: Point { x: 2, y: 0 },
             b4: Point { x: 2, y: 1 },
+            color: format!("{}", color::Fg(color::Rgb(255, 165, 0))),
         }
     }
 
+    // S tetromino.
     fn s() -> Self {
         Tetromino {
             b1: Point { x: 0, y: 1 },
             b2: Point { x: 0, y: 2 },
             b3: Point { x: 1, y: 0 },
             b4: Point { x: 1, y: 1 },
+            color: format!("{}", color::Fg(color::Green)),
         }
     }
 
+    // Z tetromino.
     fn z() -> Self {
         Tetromino {
             b1: Point { x: 0, y: 0 },
             b2: Point { x: 0, y: 1 },
             b3: Point { x: 1, y: 1 },
             b4: Point { x: 1, y: 2 },
+            color: format!("{}", color::Fg(color::Red)),
         }
     }
 }
@@ -216,11 +234,11 @@ impl Game {
     }
 
     fn insert(&mut self, t: Tetromino) {
-        let block = format!("{}[]{}", color::Fg(color::Red), style::Reset);
-        self.board[t.b1.x][t.b1.y] = block.clone();
-        self.board[t.b2.x][t.b2.y] = block.clone();
-        self.board[t.b3.x][t.b3.y] = block.clone();
-        self.board[t.b4.x][t.b4.y] = block.clone();
+        let block = format!("{}[]{}", t.color, style::Reset);
+        self.board[t.b1.x as usize][t.b1.y as usize] = block.clone();
+        self.board[t.b2.x as usize][t.b2.y as usize] = block.clone();
+        self.board[t.b3.x as usize][t.b3.y as usize] = block.clone();
+        self.board[t.b4.x as usize][t.b4.y as usize] = block.clone();
     }
 
     fn draw(&mut self) {
