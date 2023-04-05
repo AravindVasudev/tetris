@@ -1,4 +1,5 @@
 use std::io::{self, StdinLock, Stdout, Write};
+use std::ops;
 
 use rand::prelude::*;
 use termion::input::{Keys, TermRead};
@@ -31,7 +32,19 @@ const BOARD_HEIGHT: usize = 20;
 // So u8 is not an option. Given rust is efficient with structs, packing this
 // into u16 would be a overkill.
 // TODO: Maybe a different way to pack into u8?
-struct Point {x: u8, y: u8}
+struct Point {
+    x: u8,
+    y: u8,
+}
+
+impl ops::AddAssign<&Point> for Point {
+    fn add_assign(&mut self, other: &Point) {
+        *self = Self{
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
 
 // Tetromino blocks
 // Positioning:
@@ -43,10 +56,7 @@ struct Point {x: u8, y: u8}
 // The struct stores xy for each block in the tetromino.
 // Ref: https://en.wikipedia.org/wiki/Tetromino#One-sided_tetrominoes
 struct Tetromino {
-    b1: Point,
-    b2: Point,
-    b3: Point,
-    b4: Point,
+    blocks: [Point; 4],
     // Color is a trait. I got no idea what that is and instead of putting the
     // project on hold till I finish the book or keep going into my google
     // search hole, I'm hacking this to store the string.
@@ -54,7 +64,7 @@ struct Tetromino {
 }
 
 impl Tetromino {
-  // Get a random tetromino.
+    // Get a random tetromino.
     pub fn random() -> Self {
         let mut rng = rand::thread_rng();
         match rng.gen_range(0..7) {
@@ -71,10 +81,12 @@ impl Tetromino {
     // I tetromino.
     fn i() -> Self {
         Tetromino {
-            b1: Point { x: 0, y: 0 },
-            b2: Point { x: 0, y: 1 },
-            b3: Point { x: 0, y: 2 },
-            b4: Point { x: 0, y: 3 },
+            blocks: [
+                Point { x: 0, y: 0 },
+                Point { x: 0, y: 1 },
+                Point { x: 0, y: 2 },
+                Point { x: 0, y: 3 },
+            ],
             color: format!("{}", color::Fg(color::Cyan)),
         }
     }
@@ -82,10 +94,12 @@ impl Tetromino {
     // O tetromino.
     fn o() -> Self {
         Tetromino {
-            b1: Point { x: 0, y: 0 },
-            b2: Point { x: 0, y: 1 },
-            b3: Point { x: 1, y: 0 },
-            b4: Point { x: 1, y: 1 },
+            blocks: [
+                Point { x: 0, y: 0 },
+                Point { x: 0, y: 1 },
+                Point { x: 1, y: 0 },
+                Point { x: 1, y: 1 },
+            ],
             color: format!("{}", color::Fg(color::Yellow)),
         }
     }
@@ -93,10 +107,12 @@ impl Tetromino {
     // T tetromino.
     fn t() -> Self {
         Tetromino {
-            b1: Point { x: 0, y: 0 },
-            b2: Point { x: 0, y: 1 },
-            b3: Point { x: 0, y: 2 },
-            b4: Point { x: 1, y: 1 },
+            blocks: [
+                Point { x: 0, y: 0 },
+                Point { x: 0, y: 1 },
+                Point { x: 0, y: 2 },
+                Point { x: 1, y: 1 },
+            ],
             color: format!("{}", color::Fg(color::Magenta)),
         }
     }
@@ -104,10 +120,12 @@ impl Tetromino {
     // J tetromino.
     fn j() -> Self {
         Tetromino {
-            b1: Point { x: 0, y: 1 },
-            b2: Point { x: 1, y: 1 },
-            b3: Point { x: 2, y: 0 },
-            b4: Point { x: 2, y: 1 },
+            blocks: [
+                Point { x: 0, y: 1 },
+                Point { x: 1, y: 1 },
+                Point { x: 2, y: 0 },
+                Point { x: 2, y: 1 },
+            ],
             color: format!("{}", color::Fg(color::Blue)),
         }
     }
@@ -115,10 +133,12 @@ impl Tetromino {
     // L tetromino.
     fn l() -> Self {
         Tetromino {
-            b1: Point { x: 0, y: 0 },
-            b2: Point { x: 1, y: 0 },
-            b3: Point { x: 2, y: 0 },
-            b4: Point { x: 2, y: 1 },
+            blocks: [
+                Point { x: 0, y: 0 },
+                Point { x: 1, y: 0 },
+                Point { x: 2, y: 0 },
+                Point { x: 2, y: 1 },
+            ],
             color: format!("{}", color::Fg(color::Rgb(255, 165, 0))),
         }
     }
@@ -126,10 +146,12 @@ impl Tetromino {
     // S tetromino.
     fn s() -> Self {
         Tetromino {
-            b1: Point { x: 0, y: 1 },
-            b2: Point { x: 0, y: 2 },
-            b3: Point { x: 1, y: 0 },
-            b4: Point { x: 1, y: 1 },
+            blocks: [
+                Point { x: 0, y: 1 },
+                Point { x: 0, y: 2 },
+                Point { x: 1, y: 0 },
+                Point { x: 1, y: 1 },
+            ],
             color: format!("{}", color::Fg(color::Green)),
         }
     }
@@ -137,10 +159,12 @@ impl Tetromino {
     // Z tetromino.
     fn z() -> Self {
         Tetromino {
-            b1: Point { x: 0, y: 0 },
-            b2: Point { x: 0, y: 1 },
-            b3: Point { x: 1, y: 1 },
-            b4: Point { x: 1, y: 2 },
+            blocks: [
+                Point { x: 0, y: 0 },
+                Point { x: 0, y: 1 },
+                Point { x: 1, y: 1 },
+                Point { x: 1, y: 2 },
+            ],
             color: format!("{}", color::Fg(color::Red)),
         }
     }
@@ -234,11 +258,17 @@ impl Game {
     }
 
     fn insert(&mut self, t: Tetromino) {
-        let block = format!("{}[]{}", t.color, style::Reset);
-        self.board[t.b1.x as usize][t.b1.y as usize] = block.clone();
-        self.board[t.b2.x as usize][t.b2.y as usize] = block.clone();
-        self.board[t.b3.x as usize][t.b3.y as usize] = block.clone();
-        self.board[t.b4.x as usize][t.b4.y as usize] = block.clone();
+        let format = format!("{}[]{}", t.color, style::Reset);
+
+        for block in t.blocks.iter() {
+            self.board[block.x as usize][block.y as usize] = format.clone();
+        }
+    }
+
+    fn translate(&self, t: &mut Tetromino, offset: Point) {
+        for i in 0..t.blocks.len() {
+            t.blocks[i] += &offset;
+        }
     }
 
     fn draw(&mut self) {
@@ -249,7 +279,7 @@ impl Game {
 
             // Write line.
             for cell in row.iter() {
-              write!(self.stdout, "{}", cell).unwrap();
+                write!(self.stdout, "{}", cell).unwrap();
             }
         }
     }
@@ -258,7 +288,8 @@ impl Game {
     pub fn run(&mut self) {
         self.init_screen();
 
-        let t = Tetromino::random();
+        let mut t = Tetromino::random();
+        self.translate(&mut t, Point { x: 1, y: 1 });
         self.insert(t);
 
         self.draw();
