@@ -1,3 +1,4 @@
+use std::fmt::format;
 use std::io::{self, StdinLock, Stdout, Write};
 
 use rand::prelude::*;
@@ -20,14 +21,11 @@ const BOTTOM_LEFT_CORNER: &'static str = "└";
 const BOTTOM_RIGHT_CORNER: &'static str = "┘";
 
 /// The empty cell
-const EMPTY_CELL: &'static str = "·";
+const EMPTY_CELL: &'static str = "· ";
 
 // Board size
 const BOARD_WIDTH: usize = 10;
 const BOARD_HEIGHT: usize = 20;
-
-// Tetromino block
-const BLOCK: &'static str = "█";
 
 // TODO: Simply
 struct Point {
@@ -170,7 +168,7 @@ impl Game {
         for _ in 0..self.height {
             write!(self.stdout, "{}", VERT_BOUNDARY).unwrap();
             for _ in 0..self.width {
-                write!(self.stdout, "{} ", EMPTY_CELL).unwrap();
+                write!(self.stdout, "{}", EMPTY_CELL).unwrap();
             }
             write!(self.stdout, "{}\n\r", VERT_BOUNDARY).unwrap();
         }
@@ -218,10 +216,11 @@ impl Game {
     }
 
     fn insert(&mut self, t: Tetromino) {
-        self.board[t.b1.x][t.b1.y] = String::from(BLOCK);
-        self.board[t.b2.x][t.b2.y] = String::from(BLOCK);
-        self.board[t.b3.x][t.b3.y] = String::from(BLOCK);
-        self.board[t.b4.x][t.b4.y] = String::from(BLOCK);
+        let block = format!("{}[]{}", color::Fg(color::Red), style::Reset);
+        self.board[t.b1.x][t.b1.y] = block.clone();
+        self.board[t.b2.x][t.b2.y] = block.clone();
+        self.board[t.b3.x][t.b3.y] = block.clone();
+        self.board[t.b4.x][t.b4.y] = block.clone();
     }
 
     fn draw(&mut self) {
@@ -232,11 +231,7 @@ impl Game {
 
             // Write line.
             for cell in row.iter() {
-                if cell == EMPTY_CELL {
-                    write!(self.stdout, "{} ", EMPTY_CELL).unwrap();
-                } else {
-                    write!(self.stdout, "{}[]{}", color::Fg(color::Red), style::Reset).unwrap();
-                }
+              write!(self.stdout, "{}", cell).unwrap();
             }
         }
     }
