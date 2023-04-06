@@ -1,10 +1,12 @@
 use std::io::{self, StdinLock, Stdout, Write};
-use std::ops;
+use std::time::Duration;
+use std::{ops, thread};
 
 use rand::prelude::*;
+use termion::event::Key;
 use termion::input::{Keys, TermRead};
 use termion::raw::{IntoRawMode, RawTerminal};
-use termion::{clear, color, style};
+use termion::{clear, color, style, async_stdin, AsyncReader, cursor};
 
 /// The upper and lower boundary char.
 const HORZ_BOUNDARY: &'static str = "─";
@@ -180,7 +182,8 @@ pub struct Game {
     width: usize,
     height: usize,
     stdout: RawTerminal<Stdout>,
-    stdin: Keys<StdinLock<'static>>,
+    stdin: Keys<AsyncReader>,
+    falling: Option<Tetromino>,
 }
 
 impl Game {
@@ -196,8 +199,9 @@ impl Game {
             score: 0,
             width: width,
             height,
-            stdin: io::stdin().lock().keys(),
+            stdin: async_stdin().keys(),
             stdout: io::stdout().into_raw_mode().unwrap(),
+            falling: None,
         }
     }
 
@@ -250,6 +254,9 @@ impl Game {
 
     // Init game screen.
     fn init_screen(&mut self) {
+        // Hide cursor
+        write!(self.stdout, "{}", cursor::Hide).unwrap();
+
         // Clear display.
         write!(self.stdout, "{}", clear::All).unwrap();
         self.goto(1, 1);
@@ -270,14 +277,14 @@ impl Game {
     }
 
     // Translate tetromino.
-    fn translate(&mut self, t: &mut Tetromino, offset: Point) {
+    fn translate(t: &mut Tetromino, offset: Point, w: usize, h: usize) {
         // Don't translate if any block fails bound check.
         // TODO: extract validation into a fn.
         for block in t.blocks.iter() {
             let new_x = block.x + offset.x;
             let new_y = block.y + offset.y;
 
-            if new_x < 0 || new_x >= (self.height as i16) || new_y < 0 || new_y >= (self.width as i16) {
+            if new_x < 0 || new_x >= (w as i16) || new_y < 0 || new_y >= (h as i16) {
                 return;
             }
         }
@@ -289,18 +296,18 @@ impl Game {
     }
 
     // Translate tetromino left.
-    fn left(&mut self, t: &mut Tetromino) {
-        self.translate(t, Point { x: 0, y: -1 });
+    fn left(t: &mut Tetromino, w: usize, h: usize) {
+        Self::translate(t, Point { x: -1, y: 0 }, w, h);
     }
 
     // Translate tetromino right.
-    fn right(&mut self, t: &mut Tetromino) {
-        self.translate(t, Point { x: 0, y: 1 });
+    fn right(t: &mut Tetromino, w: usize, h: usize) {
+        Self::translate(t, Point { x: 1, y: 0 }, w, h);
     }
 
     // Translate tetromino down.
-    fn down(&mut self, t: &mut Tetromino) {
-        self.translate(t, Point { x: 1, y: 0 });
+    fn down(t: &mut Tetromino, w: usize, h: usize) {
+        Self::translate(t, Point { x: 0, y: 1 }, w, h);
     }
 
     fn draw(&mut self) {
@@ -314,20 +321,80 @@ impl Game {
                 write!(self.stdout, "{}", cell).unwrap();
             }
         }
+
+        // Reset cursor
+        write!(self.stdout, "{}", termion::cursor::Goto(1, 1)).unwrap();
+    }
+
+    fn draw_falling(&mut self) {
+        if let Some(t) = self.falling.as_ref() {
+            for block in t.blocks.iter() {
+                // Goto position.
+                write!(self.stdout, "{}", termion::cursor::Goto((block.x as u16) * 2 + 2, (block.y as u16) + 2)).unwrap();
+
+                // Draw block.
+                write!(self.stdout, "{}[]{}", t.color, style::Reset).unwrap();
+            }
+        }
     }
 
     // Start the game.
     pub fn run(&mut self) {
         self.init_screen();
 
-        let mut t = Tetromino::random();
-        self.left(&mut t);
-        self.right(&mut t);
-        self.right(&mut t);
-        self.down(&mut t);
-        self.insert(t);
+        // let mut t = Tetromino::random();
+        // self.translate(&mut t, Point { x: 1, y: 1 });
 
-        self.draw();
-        self.goto(1, 30);
+        // self.falling = Some(t);
+        // self.draw_falling();
+
+        loop {
+            // Init block
+            if let Some(t) = self.falling.as_mut() {
+                // fall.
+                Self::down(t, self.width, self.height);
+
+                // Next move.
+                // Bad design aravind, bad design.
+                // users can't quit if there is no block!
+                match self.stdin.next() {
+                    Some(Ok(key)) => {
+                        match key {
+                            Key::Char('q') => break, // Quit
+                            Key::Char('a') | Key::Left => Self::left(t, self.width, self.height),
+                            // Key::Char('s') | Key::Down => 's',
+                            Key::Char('d') | Key::Right => Self::right(t, self.width, self.height),
+                            // Key::Char('w') | Key::Up => 'w',
+                            _ => (),
+                        };
+                    },
+                    _ => {},
+                }
+            } else {
+
+                // Create a new falling piece if there isn't one currently.
+                let mut t = Tetromino::random();
+
+                // center it.
+                Self::translate(&mut t, Point { x: ((self.width / 2) as i16) - 1, y: 0 }, self.width, self.height);
+
+                self.falling = Some(t);
+            }
+
+            // All the game checks here.
+
+            // Draw board.
+            self.draw();
+
+            // Draw falling.
+            self.draw_falling();
+
+            self.stdout.flush().unwrap();
+
+            thread::sleep(Duration::from_millis(400));
+            // break;
+        }
+
+        self.goto(0, 30);
     }
 }
