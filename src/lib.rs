@@ -313,6 +313,47 @@ impl Game {
         Self::translate(t, Point { x: 0, y: 1 }, w, h);
     }
 
+    fn rotate_counter_clockwise(t: &mut Tetromino, w: usize, h: usize) {
+        // Center piece. So, here's the thing -- we need some center point to
+        // rotate around. For now, we just assume the 2nd piece to the rotation
+        // center. There is 4 blocks per tetromino now this works but maybe
+        // consider a size-agnostic way?
+        let cx = t.blocks[1].x;
+        let cy = t.blocks[1].y;
+
+        // Validate if rotation is within the board.
+        // yeah, yeah, I know having duplicate checks within validate and update.
+        // And I should probably create a transformed tetromino, validate, and
+        // if that passes replace the ref.
+        // TODO: Maybe do this? DRY ftw!
+        for block in t.blocks.iter() {
+            // To y'all who say programmer don't need math, check this out.
+            // So, lets go into what's going on. We know basic geometry.
+            // For a point (x, y) with center (0, 0), the counter-clockwise
+            // rotation would be (-y, x). I'm basically using this here.
+            // First, offset (x, y) by (-cx, -cy) a.k.a the center piece to
+            // get the block relative to a (0, 0) center. Then do the rotation,
+            // i.e., (-y, x) and then add back the offset (cx, cy).
+            let x = block.x - cx;
+            let y = block.y - cy;
+            let new_x = -y + cx;
+            let new_y = x + cy;
+
+            if new_x < 0 || new_x >= (w as i16) || new_y < 0 || new_y >= (h as i16) {
+                return;
+            }
+        }
+
+        // Rotate
+        for i in 0..t.blocks.len() {
+            let x = t.blocks[i].x - cx;
+            let y = t.blocks[i].y - cy;
+
+            t.blocks[i].x = -y + cx;
+            t.blocks[i].y = x + cy;
+        }
+    }
+
     fn draw(&mut self) {
         // Draw the board.
         for (j, row) in self.board.iter().enumerate() {
@@ -374,7 +415,7 @@ impl Game {
                             Key::Char('a') | Key::Left => Self::left(t, self.width, self.height),
                             Key::Char('s') | Key::Down => Self::down(t, self.width, self.height),
                             Key::Char('d') | Key::Right => Self::right(t, self.width, self.height),
-                            // Key::Char('w') | Key::Up => 'w',
+                            Key::Char('w') | Key::Up => Self::rotate_counter_clockwise(t, self.width, self.height),
                             _ => (),
                         };
                     }
@@ -399,6 +440,7 @@ impl Game {
             }
 
             // All the game checks here.
+            
 
             // Draw board.
             self.draw();
