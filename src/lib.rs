@@ -271,12 +271,15 @@ impl Game {
         self.print_score();
     }
 
-    fn insert(&mut self, t: Tetromino) {
-        let format = format!("{}[]{}", t.color, style::Reset);
-
-        for block in t.blocks.iter() {
-            self.board[block.x as usize][block.y as usize] = format.clone();
+    fn insert_falling(&mut self) {
+        if let Some(t) = self.falling.as_ref() {
+            let format = format!("{}[]{}", t.color, style::Reset);
+            for block in t.blocks.iter() {
+                self.board[block.y as usize][block.x as usize] = format.clone();
+            }
         }
+
+        self.falling = None; // The board absorbs the falling piece.
     }
 
     // Translate tetromino.
@@ -327,7 +330,7 @@ impl Game {
         // if that passes replace the ref.
         // TODO: Maybe do this? DRY ftw!
         for block in t.blocks.iter() {
-            // To y'all who say programmer don't need math, check this out.
+            // To y'all who say programmers don't need math, check this out.
             // So, lets go into what's going on. We know basic geometry.
             // For a point (x, y) with center (0, 0), the counter-clockwise
             // rotation would be (-y, x). I'm basically using this here.
@@ -370,6 +373,7 @@ impl Game {
         write!(self.stdout, "{}", termion::cursor::Goto(1, 1)).unwrap();
     }
 
+    // draw the falling piece.
     fn draw_falling(&mut self) {
         if let Some(t) = self.falling.as_ref() {
             for block in t.blocks.iter() {
@@ -385,6 +389,21 @@ impl Game {
                 write!(self.stdout, "{}[]{}", t.color, style::Reset).unwrap();
             }
         }
+    }
+
+    // Validate if done falling.
+    fn done_falling(&self) -> bool {
+        if let Some(t) = &self.falling.as_ref() {
+            // If any of the blocks sit on another block/ground, the block is done
+            // falling.
+            for block in t.blocks.iter() {
+                if block.y >= (self.height as i16) - 1 || self.board[(block.y + 1) as usize][block.x as usize] != EMPTY_CELL  {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     // Start the game.
@@ -440,7 +459,10 @@ impl Game {
             }
 
             // All the game checks here.
-            
+           // Check if done falling, i.e., touches the ground or another block.
+           if self.done_falling() {
+            self.insert_falling();
+           }
 
             // Draw board.
             self.draw();
