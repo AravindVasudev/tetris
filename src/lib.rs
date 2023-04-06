@@ -1,12 +1,12 @@
 use std::io::{self, StdinLock, Stdout, Write};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{ops, thread};
 
 use rand::prelude::*;
 use termion::event::Key;
 use termion::input::{Keys, TermRead};
 use termion::raw::{IntoRawMode, RawTerminal};
-use termion::{clear, color, style, async_stdin, AsyncReader, cursor};
+use termion::{async_stdin, clear, color, cursor, style, AsyncReader};
 
 /// The upper and lower boundary char.
 const HORZ_BOUNDARY: &'static str = "─";
@@ -29,6 +29,9 @@ const EMPTY_CELL: &'static str = "· ";
 const BOARD_WIDTH: usize = 10;
 const BOARD_HEIGHT: usize = 20;
 
+const FRAME_RATE: u8 = 60; // 60 FPS
+const FALL_RATE_MS: u128 = 1000; // 1 sec
+
 // Point struct
 // The default board size is 20x10. x requires 5 bits & y requires 4 bits.
 // So u8 is not an option. Given rust is efficient with structs, packing this
@@ -45,7 +48,7 @@ struct Point {
 
 impl ops::AddAssign<&Point> for Point {
     fn add_assign(&mut self, other: &Point) {
-        *self = Self{
+        *self = Self {
             x: self.x + other.x,
             y: self.y + other.y,
         }
@@ -330,7 +333,12 @@ impl Game {
         if let Some(t) = self.falling.as_ref() {
             for block in t.blocks.iter() {
                 // Goto position.
-                write!(self.stdout, "{}", termion::cursor::Goto((block.x as u16) * 2 + 2, (block.y as u16) + 2)).unwrap();
+                write!(
+                    self.stdout,
+                    "{}",
+                    termion::cursor::Goto((block.x as u16) * 2 + 2, (block.y as u16) + 2)
+                )
+                .unwrap();
 
                 // Draw block.
                 write!(self.stdout, "{}[]{}", t.color, style::Reset).unwrap();
@@ -342,17 +350,19 @@ impl Game {
     pub fn run(&mut self) {
         self.init_screen();
 
-        // let mut t = Tetromino::random();
-        // self.translate(&mut t, Point { x: 1, y: 1 });
-
-        // self.falling = Some(t);
-        // self.draw_falling();
-
-        loop {
+        let mut old_time = Instant::now();
+        'game: loop {
             // Init block
             if let Some(t) = self.falling.as_mut() {
-                // fall.
-                Self::down(t, self.width, self.height);
+                // This block handles the tetrominos falling. This works independent of the current frame rate.
+                // Maybe there are better ways of handling this but hey, this works.
+                if old_time.elapsed().as_millis() >= FALL_RATE_MS {
+                    // fall.
+                    Self::down(t, self.width, self.height);
+
+                    // Reset clock.
+                    old_time = Instant::now();
+                }
 
                 // Next move.
                 // Bad design aravind, bad design.
@@ -360,23 +370,30 @@ impl Game {
                 match self.stdin.next() {
                     Some(Ok(key)) => {
                         match key {
-                            Key::Char('q') => break, // Quit
+                            Key::Char('q') => break 'game, // Quit
                             Key::Char('a') | Key::Left => Self::left(t, self.width, self.height),
-                            // Key::Char('s') | Key::Down => 's',
+                            Key::Char('s') | Key::Down => Self::down(t, self.width, self.height),
                             Key::Char('d') | Key::Right => Self::right(t, self.width, self.height),
                             // Key::Char('w') | Key::Up => 'w',
                             _ => (),
                         };
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                 }
             } else {
-
                 // Create a new falling piece if there isn't one currently.
                 let mut t = Tetromino::random();
 
                 // center it.
-                Self::translate(&mut t, Point { x: ((self.width / 2) as i16) - 1, y: 0 }, self.width, self.height);
+                Self::translate(
+                    &mut t,
+                    Point {
+                        x: ((self.width / 2) as i16) - 1,
+                        y: 0,
+                    },
+                    self.width,
+                    self.height,
+                );
 
                 self.falling = Some(t);
             }
@@ -391,7 +408,7 @@ impl Game {
 
             self.stdout.flush().unwrap();
 
-            thread::sleep(Duration::from_millis(400));
+            thread::sleep(Duration::from_millis(1000 / (FRAME_RATE as u64)));
             // break;
         }
 
