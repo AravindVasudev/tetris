@@ -30,7 +30,7 @@ const BOARD_WIDTH: usize = 10;
 const BOARD_HEIGHT: usize = 20;
 
 const FRAME_RATE: u8 = 60; // 60 FPS
-const FALL_RATE_MS: u128 = 1000; // 1 sec
+const FALL_RATE_MS: u128 = 600; // 0.6 sec
 
 // Point struct
 // The default board size is 20x10. x requires 5 bits & y requires 4 bits.
@@ -283,14 +283,21 @@ impl Game {
     }
 
     // Translate tetromino.
-    fn translate(t: &mut Tetromino, offset: Point, w: usize, h: usize) {
+    // ik, ik, w, h, and board is repeated params. And this can be moved to the tetromino struct.
+    // thenks for you opinion.
+    fn translate(t: &mut Tetromino, offset: Point, w: usize, h: usize, board: &Vec<Vec<String>>) {
         // Don't translate if any block fails bound check.
         // TODO: extract validation into a fn.
         for block in t.blocks.iter() {
             let new_x = block.x + offset.x;
             let new_y = block.y + offset.y;
 
-            if new_x < 0 || new_x >= (w as i16) || new_y < 0 || new_y >= (h as i16) {
+            if new_x < 0
+                || new_x >= (w as i16)
+                || new_y < 0
+                || new_y >= (h as i16)
+                || board[new_y as usize][new_x as usize] != EMPTY_CELL
+            {
                 return;
             }
         }
@@ -302,21 +309,21 @@ impl Game {
     }
 
     // Translate tetromino left.
-    fn left(t: &mut Tetromino, w: usize, h: usize) {
-        Self::translate(t, Point { x: -1, y: 0 }, w, h);
+    fn left(t: &mut Tetromino, w: usize, h: usize, board: &Vec<Vec<String>>) {
+        Self::translate(t, Point { x: -1, y: 0 }, w, h, board);
     }
 
     // Translate tetromino right.
-    fn right(t: &mut Tetromino, w: usize, h: usize) {
-        Self::translate(t, Point { x: 1, y: 0 }, w, h);
+    fn right(t: &mut Tetromino, w: usize, h: usize, board: &Vec<Vec<String>>) {
+        Self::translate(t, Point { x: 1, y: 0 }, w, h, board);
     }
 
     // Translate tetromino down.
-    fn down(t: &mut Tetromino, w: usize, h: usize) {
-        Self::translate(t, Point { x: 0, y: 1 }, w, h);
+    fn down(t: &mut Tetromino, w: usize, h: usize, board: &Vec<Vec<String>>) {
+        Self::translate(t, Point { x: 0, y: 1 }, w, h, board);
     }
 
-    fn rotate_counter_clockwise(t: &mut Tetromino, w: usize, h: usize) {
+    fn rotate_counter_clockwise(t: &mut Tetromino, w: usize, h: usize, board: &Vec<Vec<String>>) {
         // Center piece. So, here's the thing -- we need some center point to
         // rotate around. For now, we just assume the 2nd piece to the rotation
         // center. There is 4 blocks per tetromino now this works but maybe
@@ -342,7 +349,12 @@ impl Game {
             let new_x = -y + cx;
             let new_y = x + cy;
 
-            if new_x < 0 || new_x >= (w as i16) || new_y < 0 || new_y >= (h as i16) {
+            if new_x < 0
+                || new_x >= (w as i16)
+                || new_y < 0
+                || new_y >= (h as i16)
+                || board[new_y as usize][new_x as usize] != EMPTY_CELL
+            {
                 return;
             }
         }
@@ -397,7 +409,9 @@ impl Game {
             // If any of the blocks sit on another block/ground, the block is done
             // falling.
             for block in t.blocks.iter() {
-                if block.y >= (self.height as i16) - 1 || self.board[(block.y + 1) as usize][block.x as usize] != EMPTY_CELL  {
+                if block.y >= (self.height as i16) - 1
+                    || self.board[(block.y + 1) as usize][block.x as usize] != EMPTY_CELL
+                {
                     return true;
                 }
             }
@@ -418,7 +432,7 @@ impl Game {
                 // Maybe there are better ways of handling this but hey, this works.
                 if old_time.elapsed().as_millis() >= FALL_RATE_MS {
                     // fall.
-                    Self::down(t, self.width, self.height);
+                    Self::down(t, self.width, self.height, &self.board);
 
                     // Reset clock.
                     old_time = Instant::now();
@@ -431,10 +445,21 @@ impl Game {
                     Some(Ok(key)) => {
                         match key {
                             Key::Char('q') => break 'game, // Quit
-                            Key::Char('a') | Key::Left => Self::left(t, self.width, self.height),
-                            Key::Char('s') | Key::Down => Self::down(t, self.width, self.height),
-                            Key::Char('d') | Key::Right => Self::right(t, self.width, self.height),
-                            Key::Char('w') | Key::Up => Self::rotate_counter_clockwise(t, self.width, self.height),
+                            Key::Char('a') | Key::Left => {
+                                Self::left(t, self.width, self.height, &self.board)
+                            }
+                            Key::Char('s') | Key::Down => {
+                                Self::down(t, self.width, self.height, &self.board)
+                            }
+                            Key::Char('d') | Key::Right => {
+                                Self::right(t, self.width, self.height, &self.board)
+                            }
+                            Key::Char('w') | Key::Up => Self::rotate_counter_clockwise(
+                                t,
+                                self.width,
+                                self.height,
+                                &self.board,
+                            ),
                             _ => (),
                         };
                     }
@@ -453,16 +478,17 @@ impl Game {
                     },
                     self.width,
                     self.height,
+                    &self.board,
                 );
 
                 self.falling = Some(t);
             }
 
             // All the game checks here.
-           // Check if done falling, i.e., touches the ground or another block.
-           if self.done_falling() {
-            self.insert_falling();
-           }
+            // Check if done falling, i.e., touches the ground or another block.
+            if self.done_falling() {
+                self.insert_falling();
+            }
 
             // Draw board.
             self.draw();
