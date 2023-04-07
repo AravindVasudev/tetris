@@ -1,5 +1,4 @@
-use std::collections::HashSet;
-use std::io::{self, StdinLock, Stdout, Write};
+use std::io::{self, Stdout, Write};
 use std::time::{Duration, Instant};
 use std::{ops, thread};
 
@@ -31,7 +30,7 @@ const BOARD_WIDTH: usize = 10;
 const BOARD_HEIGHT: usize = 20;
 
 const FRAME_RATE: u8 = 60; // 60 FPS
-const FALL_RATE_MS: u128 = 600; // 0.6 sec
+const FALL_RATE_MS: u128 = 400; // 0.5 sec
 
 // Point struct
 // The default board size is 20x10. x requires 5 bits & y requires 4 bits.
@@ -300,6 +299,9 @@ impl Game {
     // Translate tetromino.
     // ik, ik, w, h, and board is repeated params. And this can be moved to the tetromino struct.
     // thenks for you opinion.
+    /// Oh, and note: the board's (x, y) and the screen's (x, y) is different.
+    /// I figured I messed up half way through but I was too lazy to fix it so
+    /// we are going to live with this.
     fn translate(
         t: &mut Tetromino,
         offset: Point,
