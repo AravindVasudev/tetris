@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::io::{self, StdinLock, Stdout, Write};
 use std::time::{Duration, Instant};
 use std::{ops, thread};
@@ -180,8 +181,12 @@ impl Tetromino {
 }
 
 pub struct Game {
+    // Bad design aravind, very bad.
+    // Now that the board is a str, every freaking el is on the heap and every
+    // comparison is expensive. Each cell stores two info: occupied and color.
+    // Could have compressed into a single u8.
     board: Vec<Vec<String>>,
-    score: i8,
+    score: i64,
     width: usize,
     height: usize,
     stdout: RawTerminal<Stdout>,
@@ -369,6 +374,44 @@ impl Game {
         }
     }
 
+    // clears completed lines and updates score.
+    // Scoring mechanism:
+    //  For now, each completed line adds 100 pts.
+    // Each press of the down key and make the fall faster adds 1 pt.
+    // TODO: clearing multiple lines together should have score multiple.
+    fn clear_completed_lines(&mut self) {
+        for i in (0..self.height).rev() {
+            // Check if the whole row is occupied.
+            let mut occupied = 0;
+            for j in 0..self.width {
+                if self.board[i][j] != EMPTY_CELL {
+                    occupied += 1;
+                }
+            }
+
+            // If yes, update score.
+            if occupied == self.width {
+                self.score += 100;
+            }
+
+            // Clear row if its all occupied or all free.
+            if occupied == 0 || occupied == self.width {
+                // If not row above, just clear the row.
+                if i == 0 {
+                    for j in 0..self.width {
+                        self.board[i][j] = String::from(EMPTY_CELL);
+                    }
+                } else {
+                    // fallllll
+                    for j in 0..self.width {
+                        self.board[i][j] = self.board[i - 1][j].clone();
+                        self.board[i - 1][j] = String::from(EMPTY_CELL);
+                    }
+                }
+            }
+        }
+    }
+
     fn draw(&mut self) {
         // Draw the board.
         for (j, row) in self.board.iter().enumerate() {
@@ -490,8 +533,14 @@ impl Game {
                 self.insert_falling();
             }
 
+            // Clear completed lines
+            self.clear_completed_lines();
+
             // Draw board.
             self.draw();
+
+            // Draw score
+            self.print_score();
 
             // Draw falling.
             self.draw_falling();
