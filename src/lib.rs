@@ -180,6 +180,14 @@ impl Tetromino {
     }
 }
 
+// GameState represents all the state the game can be in.
+// Yeah, yeah, I know. Ideally, I'd like to have a start screen state,
+// pause state, maybe win? (but what really is winning in tetris?).
+enum GameState {
+    PLAY,
+    LOSE,
+}
+
 pub struct Game {
     // Bad design aravind, very bad.
     // Now that the board is a str, every freaking el is on the heap and every
@@ -192,6 +200,7 @@ pub struct Game {
     stdout: RawTerminal<Stdout>,
     stdin: Keys<AsyncReader>,
     falling: Option<Tetromino>,
+    state: GameState,
 }
 
 impl Game {
@@ -210,6 +219,7 @@ impl Game {
             stdin: async_stdin().keys(),
             stdout: io::stdout().into_raw_mode().unwrap(),
             falling: None,
+            state: GameState::PLAY,
         }
     }
 
@@ -446,6 +456,24 @@ impl Game {
         }
     }
 
+    // Draw game over
+    fn draw_game_over(&mut self) {
+        if matches!(self.state, GameState::LOSE) {
+            // Goto middle
+            self.goto(4, (self.width / 2 + 2) as u16);
+
+            // Draw
+            write!(
+                self.stdout,
+                "{}{}GAME OVER ☹️{}",
+                style::Bold,
+                color::Fg(color::Red),
+                color::Fg(color::Reset)
+            )
+            .unwrap();
+        }
+    }
+
     // Validate if done falling.
     fn done_falling(&self) -> bool {
         if let Some(t) = &self.falling.as_ref() {
@@ -463,13 +491,28 @@ impl Game {
         return false;
     }
 
+    fn update_game_state(&mut self) {
+        // let's keep it stupid simple -- if board[0][center] is occupied, it's
+        // game over. Is it hacky if it works?
+        if self.board[0][(self.width / 2) - 1] != EMPTY_CELL
+            || self.board[1][(self.width / 2) - 1] != EMPTY_CELL
+        {
+            self.state = GameState::LOSE;
+        }
+    }
+
     // Start the game.
     pub fn run(&mut self) {
         self.init_screen();
 
         let mut old_time = Instant::now();
         'game: loop {
-            // Init block
+            // Game Over :(
+            if matches!(self.state, GameState::LOSE) {
+                self.draw_game_over();
+                break;
+            }
+
             if let Some(t) = self.falling.as_mut() {
                 // This block handles the tetrominos falling. This works independent of the current frame rate.
                 // Maybe there are better ways of handling this but hey, this works.
@@ -549,8 +592,16 @@ impl Game {
             // Flush stdout
             self.stdout.flush().unwrap();
 
+            // Update game state
+            self.update_game_state();
+
             // Maintain frame rate.
             thread::sleep(Duration::from_millis(1000 / (FRAME_RATE as u64)));
         }
+
+        // Move cursor out of the board and show cursor.
+        // If not, the terminal clears the board.
+        self.goto(0, (self.height as u16) + 3);
+        write!(self.stdout, "{}", cursor::Show).unwrap();
     }
 }
