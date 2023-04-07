@@ -300,7 +300,13 @@ impl Game {
     // Translate tetromino.
     // ik, ik, w, h, and board is repeated params. And this can be moved to the tetromino struct.
     // thenks for you opinion.
-    fn translate(t: &mut Tetromino, offset: Point, w: usize, h: usize, board: &Vec<Vec<String>>) {
+    fn translate(
+        t: &mut Tetromino,
+        offset: Point,
+        w: usize,
+        h: usize,
+        board: &Vec<Vec<String>>,
+    ) -> bool {
         // Don't translate if any block fails bound check.
         // TODO: extract validation into a fn.
         for block in t.blocks.iter() {
@@ -313,7 +319,7 @@ impl Game {
                 || new_y >= (h as i16)
                 || board[new_y as usize][new_x as usize] != EMPTY_CELL
             {
-                return;
+                return false;
             }
         }
 
@@ -321,21 +327,23 @@ impl Game {
         for i in 0..t.blocks.len() {
             t.blocks[i] += &offset;
         }
+
+        return true;
     }
 
     // Translate tetromino left.
-    fn left(t: &mut Tetromino, w: usize, h: usize, board: &Vec<Vec<String>>) {
-        Self::translate(t, Point { x: -1, y: 0 }, w, h, board);
+    fn left(t: &mut Tetromino, w: usize, h: usize, board: &Vec<Vec<String>>) -> bool {
+        Self::translate(t, Point { x: -1, y: 0 }, w, h, board)
     }
 
     // Translate tetromino right.
-    fn right(t: &mut Tetromino, w: usize, h: usize, board: &Vec<Vec<String>>) {
-        Self::translate(t, Point { x: 1, y: 0 }, w, h, board);
+    fn right(t: &mut Tetromino, w: usize, h: usize, board: &Vec<Vec<String>>) -> bool {
+        Self::translate(t, Point { x: 1, y: 0 }, w, h, board)
     }
 
     // Translate tetromino down.
-    fn down(t: &mut Tetromino, w: usize, h: usize, board: &Vec<Vec<String>>) {
-        Self::translate(t, Point { x: 0, y: 1 }, w, h, board);
+    fn down(t: &mut Tetromino, w: usize, h: usize, board: &Vec<Vec<String>>) -> bool {
+        Self::translate(t, Point { x: 0, y: 1 }, w, h, board)
     }
 
     fn rotate_counter_clockwise(t: &mut Tetromino, w: usize, h: usize, board: &Vec<Vec<String>>) {
@@ -532,14 +540,14 @@ impl Game {
                         match key {
                             Key::Char('q') => break 'game, // Quit
                             Key::Char('a') | Key::Left => {
-                                Self::left(t, self.width, self.height, &self.board)
+                                Self::left(t, self.width, self.height, &self.board);
                             }
                             Key::Char('s') | Key::Down => {
                                 Self::down(t, self.width, self.height, &self.board);
                                 self.score += 1;
                             }
                             Key::Char('d') | Key::Right => {
-                                Self::right(t, self.width, self.height, &self.board)
+                                Self::right(t, self.width, self.height, &self.board);
                             }
                             Key::Char('w') | Key::Up => Self::rotate_counter_clockwise(
                                 t,
@@ -557,7 +565,8 @@ impl Game {
                 let mut t = Tetromino::random();
 
                 // center it.
-                Self::translate(
+                // If center fails since the piece overlaps, the game is over.
+                if !Self::translate(
                     &mut t,
                     Point {
                         x: ((self.width / 2) as i16) - 1,
@@ -566,7 +575,9 @@ impl Game {
                     self.width,
                     self.height,
                     &self.board,
-                );
+                ) {
+                    self.state = GameState::LOSE;
+                }
 
                 self.falling = Some(t);
             }
