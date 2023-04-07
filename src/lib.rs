@@ -492,7 +492,8 @@ impl Game {
                                 Self::left(t, self.width, self.height, &self.board)
                             }
                             Key::Char('s') | Key::Down => {
-                                Self::down(t, self.width, self.height, &self.board)
+                                Self::down(t, self.width, self.height, &self.board);
+                                self.score += 1;
                             }
                             Key::Char('d') | Key::Right => {
                                 Self::right(t, self.width, self.height, &self.board)
@@ -545,12 +546,11 @@ impl Game {
             // Draw falling.
             self.draw_falling();
 
+            // Flush stdout
             self.stdout.flush().unwrap();
 
+            // Maintain frame rate.
             thread::sleep(Duration::from_millis(1000 / (FRAME_RATE as u64)));
-            // break;
         }
-
-        self.goto(0, 30);
     }
 }
